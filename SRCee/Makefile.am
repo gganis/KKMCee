@@ -36,6 +36,7 @@ libKKee_la_SOURCES =	KKee2f.cxx KKdbase.cxx KKdizet.cxx KKborn.cxx \
 libKKee_la_LIBADD =  \
 	$(top_builddir)/tauola-photos/libTauolaPhotos.la \
 	$(top_builddir)/MCdev/libMCdev.la \
+	$(top_builddir)/KKpol/libKKpol.la \
 	$(PHOTOS_LDFLAGS) $(LDFLAGS_HEPMC)
 libKKee_la_LDFLAGS = -R $(PHOTOS_LIBDIR) #-Wl,-z,defs
 #///////////////////////////////////////////////////////////////
@@ -67,6 +68,12 @@ CLEANFILES = $(dict2C) $(dict2H) $(dict1C) $(dict1H)
 #  explicit target in ../MCdev
 $(top_builddir)/MCdev/libMCdev.la: $(top_builddir)/MCdev/*.h $(top_builddir)/MCdev/*.cxx
 	(cd $(top_builddir)/MCdev/; make)
+#/////////////////////////////////////////////////////////////
+
+#///////////////////////////////////////////////////////////////
+#  explicit target in ../KKpol
+$(top_builddir)/KKpol/libKKpol.la: $(top_builddir)/KKpol/*.h $(top_builddir)/KKpol/*.f
+	(cd $(top_builddir)/KKpol/; make)
 #/////////////////////////////////////////////////////////////
 
 #/////////////////////////////////////////////////////////////

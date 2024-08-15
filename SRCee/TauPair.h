@@ -145,6 +145,8 @@ void ImprintSpin();
 void TransExport();
 void RunPhotosPP();
 void Tralo4(int Kto, float P[], float Q[], float &AM);
+void FillBornVEssentials();
+void GetPolarizationInfo(double &me, double &spin, double &spin0);
 void Finalize();
 ////////////////////////////////////////////////////////////////////////////
        ClassDef(TauPair,1); // Data base

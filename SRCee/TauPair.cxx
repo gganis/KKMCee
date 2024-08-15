@@ -2,6 +2,7 @@
 // Replaces f77 module TauPair
 ///////////////////////////////////////////////////////////////////////////////
 #include "TauPair.h"
+#include "KKpol/anomwt2-Z.h"
 
 ClassImp(TauPair);
 
@@ -193,6 +194,24 @@ e1099:
   wt = wt1;                         // why not wt2???
   rn = m_RNgen->Rndm();
   if (wt < wtmax*rn  && loop<100) goto e1099;
+  // Save helicity information in the HepMC3 record as particle (Tau, Tau-) attributes
+  if (m_Hvent) {
+    std::vector<float> hel;
+    for (auto p: m_Hvent->particles()){
+      if (p->pid() == 15){ // Tau-
+        hel.clear(); for(int i=0; i<3;i++) hel.push_back(m_HvClone2[i]);
+        // Create attribute
+        p->add_attribute("spin", std::make_shared<VectorFloatAttribute>(hel));
+      } else if (p->pid() == -15){ // Tau+
+        hel.clear(); for(int i=0; i<3;i++) hel.push_back(m_HvClone1[i]);
+        // Create attribute
+        p->add_attribute("spin", std::make_shared<VectorFloatAttribute>(hel));
+      }
+    }// end loop over particles
+  } else {
+     cout << "m_Hvent not defined! Cannot save helicity information" << endl;
+  }
+
 }//ImprintSpin
 
 ///______________________________________________________________________________________
@@ -337,3 +356,314 @@ m_GPS->TralorDoIt(Kto,Pd,Pd);
 for(int k=0; k<4; k++) P[k]=Pd[k];
 //----------------------------------------------
 }//Tralo4
+
+void TauPair::FillBornVEssentials() {
+
+   KKdbase *DD = m_GPS->DB;
+   KKdizet *DZ = m_GPS->m_DZ;
+   // Prepare the vectir information
+   double GSW[KKdizet::m_poinG];
+   for (int i = 1; i < KKdizet::m_poinG; i++) {
+      GSW[i] = DZ->m_GSW[i].real() ;
+   }
+   int keyelw = DB->KeyElw;
+   double swsq = DZ->D_swsq;
+   double alfinv = DB->AlfinvZ;
+   double mz = DZ->m_MZ;
+   double gamz = DZ->D_GamZ;
+   fillbornv_(&keyelw, &swsq, &alfinv, &mz, &gamz, GSW);
+   return;
+}
+
+void TauPair::GetPolarizationInfo(double &wtME, double &wtSPIN, double &wtSPIN0) {
+/*
+   // Fill the common block
+   int out = 6;
+   int idyfs = 0;
+   int ifphot = 0;
+   filltaupair_(m_HvecTau1, m_HvecTau2, m_HvClone1, m_HvClone2,
+                &m_beta1, &m_alfa1, &m_gamma1, &m_beta2, &m_alfa2, &m_gamma2,
+                &m_phi1, &m_thet1, &m_phi2, &m_thet2, &out, &m_IsInitialized, &idyfs, &m_KeyClone, &ifphot);
+   
+   // Call the main function
+   int iqed = 0;
+   double Ar0(0), Ai0(0), Br0(0), Bi0(0);
+   double wtME, wtSPIN, wtSPIN0;
+   anomwt_(&iqed, &Ar0, &Ai0, &Br0, &Bi0, &wtME, &wtSPIN, &wtSPIN0);
+*/
+   // Main vectors
+  // double h1[4], h2[4], hr1[4], hr2[4], p1[4], p2[4], am;
+   double h1[4], h2[4], p1[4], p2[4];
+   for(int i=0; i<4; i++) {
+      h1[i] = m_HvClone1[i];
+      h2[i] = m_HvClone2[i];
+    //  hr1[i] = m_HvClone1[i];
+    //  hr2[i] = m_HvClone2[i];
+      p1[i] = 0;
+      p2[i] = 0;
+   }
+   // Tau mass
+   double massTau = 1.77705;
+   p1[3] = massTau;
+   p2[3] = massTau;
+
+   // Rotations
+   m_GPS->TralorPrepare(1);
+   m_GPS->TralorPrepare(2);
+   
+   m_GPS->TralorDoIt(1, p1, p1);
+   m_GPS->TralorDoIt(2, p2, p2);
+   m_GPS->TralorDoIt(1, h1, h1);
+   m_GPS->TralorDoIt(2, h2, h2);
+   //Tralo4(1, hr1, hr1, am);
+   //Tralo4(1, hr2, hr2, am);
+
+   double qq[4], pb1[4], pb2[4];
+   for(int i=0; i<4; i++) {
+      qq[i] = p1[i] + p2[i];
+      pb1[i] = 0;
+      pb2[i] = 0;
+   }
+   pb1[3]= 1.0;
+   pb1[2]= 1.0;
+   pb2[3]= 1.0;
+   pb2[2]=-1.0;
+      
+// We go to restframe of tau pair to work against bremstrahlungs
+      
+   KKceex::BostDQ(1, qq, h1, h1);
+   KKceex::BostDQ(1, qq, h2, h2);
+   KKceex::BostDQ(1, qq, p1, p1);
+   KKceex::BostDQ(1, qq, p2, p2);
+   KKceex::BostDQ(1, qq, pb1, pb1);
+   KKceex::BostDQ(1, qq, pb2, pb2);
+      
+// We eliminate y-components of p1,p2
+   double fi = KKceex::AngFi(p2[0],p2[1]);
+
+   KKceex::RotoD3(-fi, h1, h1);
+   KKceex::RotoD3(-fi, h2, h2);
+   KKceex::RotoD3(-fi, p1, p1);
+   KKceex::RotoD3(-fi, p2, p2);
+   KKceex::RotoD3(-fi, pb1, pb1);
+   KKceex::RotoD3(-fi, pb2, pb2);
+
+// Set taus along z direction      
+   double thet = KKceex::AngXY(p2[2], p2[0]);
+
+   KKceex::RotoD2(-thet, h1, h1);
+   KKceex::RotoD2(-thet, h2, h2);
+   KKceex::RotoD2(-thet, p1, p1);
+   KKceex::RotoD2(-thet, p2, p2);
+   KKceex::RotoD2(-thet, pb1, pb1);
+   KKceex::RotoD2(-thet, pb2, pb2);
+
+// Set  beam difference to reaction plane  x-z
+   double pbb[4];
+   for(int i=0; i<4; i++) {
+//      pbb[i] = pb1[i] - pb2[i]; // Inconsistece!
+      pbb[i] = pb2[i] - pb1[i];
+   }
+      
+   double fi1 = KKceex::AngFi(pbb[0],pbb[1]);
+
+   KKceex::RotoD3(-fi1, h1, h1);
+   KKceex::RotoD3(-fi1, h2, h2);
+   KKceex::RotoD3(-fi1, p1, p1);
+   KKceex::RotoD3(-fi1, p2, p2);
+   KKceex::RotoD3(-fi1, pb1, pb1);
+   KKceex::RotoD3(-fi1, pb2, pb2);
+
+   KKceex::BostDQ(1, p1, h1, h1);
+   KKceex::BostDQ(1, p1, h2, h2);
+
+   double E = p1[3];
+   double theta = TMath::ACos( -pb1[2] / sqrt(pb1[0]*pb1[0] + pb1[1]*pb1[1] + pb1[2]*pb1[2]));  // minus necessary for KKMC frames
+
+// Fill BornV.h essentials (needed by dipolqqrijradcor_)
+   FillBornVEssentials();
+
+   int iqed(0), channel(1);  
+   double ReA(0), ImA(0), ReB(0), ImB(0), ReX(0), ImX(0), ReY(0), ImY(0);
+   double R0[4][4];
+
+   dipolqqrijradcor_(&iqed, &E, &theta, &ReA, &ImA, &ReB, &ImB, &ReX, &ImX, &ReY, &ImY, R0, &channel);
+
+   iqed = 1;
+   double Ar0(0), Ai0(0), Br0(0), Bi0(0);
+   ReA = Ar0; 
+   ImA = Ai0;
+   ReB = Br0;
+   ImB = Bi0;
+   ReX = Ar0;
+   ImX = Ai0;
+   ReY = Br0;
+   ImY = Bi0;
+
+   double R[4][4];
+   dipolqqrijradcor_(&iqed, &E, &theta, &ReA, &ImA, &ReB, &ImB, &ReX, &ImX, &ReY, &ImY, R, &channel);
+
+// Prepare outputs
+   wtME = R[3][3] / R0[3][3];
+   wtSPIN = 0;
+   wtSPIN0 = 0;
+   double sign[4] = {-1, 1, -1, 1}; // sign() introduces overall rotation around by pi around  y axis. Necessary for KKMC frames. 
+   for(int i=0; i<4; i++) {
+      for(int j=0; j<4; j++) {
+          wtSPIN  = wtSPIN  + R [i][j] / R[3][3] * h1[i] * h2[j] * sign[i] * sign[j];
+          wtSPIN0 = wtSPIN0 + R0[i][j] / R0[3][3]* h1[i] * h2[j] * sign[i] * sign[j];
+      }
+   }
+   // Renormalize
+   wtSPIN = wtSPIN / wtSPIN0;
+
+  return;
+}
+
+/* 
+       double precision H1(4),H2(4),P1(4),P2(4),QQ(4),PB1(4),PB2(4),pbb(4)
+       double precision R(4,4),R0(4,4),E, theta, Ar, Ai, Br, Bi,X
+       double precision ReA, ImA, ReB, ImB, ReX, ImX, ReY, ImY
+       double precision Ar0, Ai0, Br0, Bi0,sign(4)
+
+      INTEGER              KFbeam
+      DOUBLE PRECISION     CMSene
+      DOUBLE PRECISION     BornV_GetMass, Mbeam
+      DOUBLE PRECISION     pe1(4),pe2(4)
+
+      REAL*8 wtME,wtSPIN,wtSPIN0
+      COMMON /HVEC/ H1,H2
+      REAL HR1(4),HR2(4),AM
+      Do k=1,4
+         H1(k)=m_HvClone1(k) ! differ from m_HvecTau1(k)
+         H2(k)=m_HvClone2(k)    !same as m_HvecTau2(k)
+         HR1(K)=H1(K)
+         HR2(K)=H2(K)
+         P1(k)=0.0
+         P2(k)=0.0
+      enddo
+      P1(4)=1.777
+      P2(4)=1.777
+
+c KFbeam = 11
+
+c Mbeam   = BornV_GetMass(KFbeam)
+c WRITE(*,*) 'Mbeam= ',Mbeam,CMSene
+
+c CALL KinLib_DefPair(CMSene,Mbeam,Mbeam,pe1,pe2)
+
+c CALL GPS_tralorPrepare(pe1,1)
+c CALL GPS_tralorPrepare(pe2,2)
+
+      CALL GPS_TralorDoIt(1,P1,P1)
+      CALL GPS_TralorDoIt(2,P2,P2)
+      CALL GPS_TralorDoIt(1,H1,H1)
+      CALL GPS_TralorDoIt(2,H2,H2)
+      CALL GPS_tralorPrepare(p1,1)
+      CALL GPS_tralorPrepare(p2,2)
+      CALL Tralo4(1,HR1,HR1,AM)
+      CALL Tralo4(2,HR2,HR2,AM)
+
+      
+      DO k=1,4
+         QQ(k)=P1(k)+P2(k)
+         PB1(K)=0.0
+         PB2(K)=0.0
+      enddo
+      PB1(4)= 1.0
+      PB2(4)= 1.0
+      PB1(3)= 1.0
+      PB2(3)=-1.0
+      
+c     we go to restframe of tau pair to work against bremstrahlungs
+      
+      call bostdq(1,qq,H1,H1)
+      call bostdq(1,qq,H2,H2)
+      call bostdq(1,qq,p1,p1)
+      call bostdq(1,qq,p2,p2)
+      call bostdq(1,qq,pb1,pb1)
+      call bostdq(1,qq,pb2,pb2)
+      
+C     we eliminate y-components of p1,p2
+      FI=ANGFI(P2(1),P2(2))
+
+      call rotod3(-fi,h1,h1)
+      call rotod3(-fi,h2,h2)
+      call rotod3(-fi,p1,p1)
+      call rotod3(-fi,p2,p2)
+      call rotod3(-fi,pb1,pb1)
+      call rotod3(-fi,pb2,pb2)
+
+C set taus along z direction      
+      thet=angxy(p2(3),p2(1))
+
+      call rotod2(-thet,h1,h1)
+      call rotod2(-thet,h2,h2)
+      call rotod2(-thet,p1,p1)
+      call rotod2(-thet,p2,p2)
+      call rotod2(-thet,pb1,pb1)
+      call rotod2(-thet,pb2,pb2)
+
+C     set  beam difference to reaction plane  x-z
+      do k=1,4
+         PBB(k)=pb1(k)-pb2(k)
+          PBB(k)=pb2(k)-pb1(k)
+      enddo
+      
+      FI1=ANGFI(PBB(1),PBB(2))
+
+      call rotod3(-fi1,pb1,pb1)
+      call rotod3(-fi1,pb2,pb2)
+      call rotod3(-fi1,h1,h1)
+      call rotod3(-fi1,h2,h2)
+      call rotod3(-fi1,p1,p1)
+      call rotod3(-fi1,p2,p2)
+                            
+      call bostdq(1,p1,H1,H1)
+      call bostdq(1,p2,H2,H2)
+
+      E=p1(4)
+      theta=acos(-pb1(3)/sqrt(pb1(1)**2+pb1(2)**2+pb1(3)**2))  ! minus necessary for KKMC frames
+ *//*      
+      ReA=0.0
+      ImA=0.0
+      ReB=0.0
+      ImB=0.0
+      ReX=0.0
+      ImX=0.0
+      ReY=0.0
+      ImY=0.0
+
+      call DipolQQRijRadCor (0,E, theta, ReA, ImA, ReB, ImB, ReX, ImX, ReY, ImY, R0,1)
+
+      iqed=1
+      ReA=Ar0!*0.0
+      ImA=Ai0!*0.0
+      ReB=Br0!*0.0           
+      ImB=Bi0!*0.0
+      ReX=Ar0!*0.0
+      ImX=Ai0!*0.0
+      ReY=Br0!*0.0
+      ImY=Bi0!*0.0
+
+      call DipolQQRijRadCor (iqed,E, theta, ReA, ImA, ReB, ImB, ReX, ImX, ReY, ImY, R,1)
+
+      wtME=R(4,4)/R0(4,4)
+      wtSPIN=0.0
+      wtSPIN0=0.0
+
+      ! sign() introduces overall rotation around by pi around  y axis. Necessary for KKMC frames. 
+      sign(1)=-1.0
+      sign(2)= 1.0
+      sign(3)=-1.0
+      sign(4)= 1.0
+      
+      DO I=1,4
+         DO J=1,4
+            WTSPIN =WTSPIN +R (I,J)/R(4,4)*H1(I)*H2(J)*sign(I)*sign(j)
+            WTSPIN0=WTSPIN0+R0(I,J)/R0(4,4)*H1(I)*H2(J)*sign(I)*sign(j)
+         ENDDO
+      ENDDO
+     
+      WTSPIN =WTSPIN/WTSPIN0
+*/

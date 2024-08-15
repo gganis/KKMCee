@@ -61,9 +61,10 @@ dizet/Makefile \
 tauola-photos/Makefile  \
 Foam2/Makefile \
 MCdev/Makefile MCdev/farming/Makefile \
+KKpol/Makefile \
 SRCee/Makefile \
 DZface/Makefile \
 ProdRun/Makefile  ProdRun/workMini/Makefile  ProdRun/work1/Makefile ProdRun/workFoam/Makefile \
-                  ProdRun/workNU/Makefile ProdRun/workTau/Makefile ProdDigest/Makefile
+                  ProdRun/workNU/Makefile ProdRun/workTau/Makefile ProdRun/kkmchepmc/Makefile ProdDigest/Makefile
 ])
 AC_OUTPUT

@@ -862,6 +862,12 @@ if ( (m_WtCrude  != 0) && ( m_KFfin == 15) ) {
      m_TauGen->TransExport();  // transform decays to LAB, collect tau decays
      m_HEPMC->tauolaToHEPMC3();// append m_Hvent with tau decay products
      m_TauGen->RunPhotosPP();  // Run Photos for non leptonic tau dacays
+     double me, spin, spin0;
+     m_TauGen->GetPolarizationInfo(me, spin, spin0); // Information about polarization
+     cout<< "+-----" << endl;
+     cout<< "++++++ >>> Polarization info: "<< me << " | " << spin << " | " << spin0  << endl;
+     cout<< "+-----" << endl;
+
    }//TauIsInitialized
 }//if KFfin == 15
 

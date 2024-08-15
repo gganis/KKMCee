@@ -307,6 +307,14 @@ void PartitionPlus( int &last);
 void ZerAmplit();
 void TralorPrepare(int KTO);
 void TralorDoIt(int KTO, double P[], double Q[]);
+
+// Auxilliary static functions
+static double AngFi(double x, double y);
+static double AngXY(double x, double y);
+static void BostDQ(int mode, double *pp, double *qq, double *r);
+static void RotoD1(double phi, double *pvec, double *qvec);
+static void RotoD2(double phi, double *pvec, double *qvec);
+static void RotoD3(double phi, double *pvec, double *qvec);
 ////////////////////////////////////////////////////////////////////////////
        ClassDef(KKceex,1); // Data base
 };// KKceex class

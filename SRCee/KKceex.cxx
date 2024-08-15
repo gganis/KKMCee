@@ -1,5 +1,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 #include "KKceex.h"
+#include "TMath.h"
 
 ClassImp(KKceex);
 ClassImp(KKcmplx4);
@@ -3832,3 +3833,84 @@ void KKceex::MakeVfin(KKpart p3, KKpart p4, KKpart ph, dcmplx &V1, dcmplx &V2){
 // *** $   +(Alfpi*Q**2) *( +0.50d0*cL*DLOG((1d0-s3)*(1d0-s4)) )  !! corr. due YFS formfactor
 }// MakeVfin
 
+// Auxilliary static functions
+double KKceex::AngFi(double x, double y) {
+// calculates angle in (0,2*pi) range out of x-y
+   double theta = 0;
+   if (TMath::Abs(y) < TMath::Abs(x)) {
+      theta = TMath::ATan(TMath::Abs(y/x));
+      if (x <= 0.) theta = TMath::Pi() - theta;
+   } else {
+      theta = TMath::ACos( x/TMath::Sqrt(x*x + y*y) );
+   }
+   if (y < 0) theta = 2*TMath::Pi() - theta;
+   return theta;
+}
+
+double KKceex::AngXY(double x, double y) {
+// 
+   double theta = 0;
+   if (TMath::Abs(y) < TMath::Abs(x)) {
+      theta = TMath::ATan(TMath::Abs(y/x));
+      if (x <= 0.) theta = TMath::Pi() - theta;
+   } else {
+      theta = TMath::ACos( x/TMath::Sqrt(x*x + y*y) );
+   }
+   return theta;
+}
+
+void KKceex::BostDQ(int mode, double *pp, double *qq, double *r) {
+// boost along arbitrary axis (by ronald kleiss).
+// p boosted into r  from actual frame to rest frame of q
+// forth (mode = 1) or back (mode = -1).
+// q must be a timelike, p may be arbitrary.
+   double p[4], q[4];
+   for(int i = 0; i<4; i++) { p[i] = pp[i]; q[i] = qq[i]; }
+   double amq = TMath::Sqrt(q[3]*q[3] - q[0]*q[0] - q[1]*q[1] - q[2]*q[2]);
+   double fac = 0;
+   if ( mode == -1 ) {
+      r[3] = (p[0]*q[0] + p[1]*q[1] + p[2]*q[2] + p[3]*q[3]) / amq ;
+      fac  = (r[3] + p[3]) / (q[3] + amq);
+   } else if ( mode == 1 ) {
+      r[3] = (-p[0]*q[0] - p[1]*q[1] - p[2]*q[2] + p[3]*q[3]) / amq ;
+      fac  = (-r[3] - p[3]) / (q[3] + amq);
+   } else {
+      cout<< "++++++ BostDQ: wrong mode: "<< mode << endl;
+   }
+   r[0] = p[0] + fac*q[0];
+   r[1] = p[1] + fac*q[1];
+   r[2] = p[2] + fac*q[2];
+}
+void KKceex::RotoD1(double phi, double *pp, double *qvec) {
+// From Fortran rotod1
+   double cs = TMath::Cos(phi);
+   double sn = TMath::Sin(phi);
+   double pvec[4];
+   for(int i = 0; i<4; i++) { pvec[i] = pp[i]; }
+   qvec[0] = pvec[0];
+   qvec[1] = cs*pvec[1] - sn*pvec[2];
+   qvec[2] = sn*pvec[1] + cs*pvec[2];
+   qvec[3] = pvec[3];
+}
+void KKceex::RotoD2(double phi, double *pp, double *qvec){
+// From Fortran rotod2
+   double cs = TMath::Cos(phi);
+   double sn = TMath::Sin(phi);
+   double pvec[4];
+   for(int i = 0; i<4; i++) { pvec[i] = pp[i]; }
+   qvec[0] = cs*pvec[0] + sn*pvec[2];
+   qvec[1] = pvec[1];
+   qvec[2] =-sn*pvec[0] + cs*pvec[2];
+   qvec[3] = pvec[3];
+}
+void KKceex::RotoD3(double phi, double *pp, double *qvec) {
+// From Fortran rotod3
+   double cs = TMath::Cos(phi);
+   double sn = TMath::Sin(phi);
+   double pvec[4];
+   for(int i = 0; i<4; i++) { pvec[i] = pp[i]; }
+   qvec[0] = cs*pvec[0] - sn*pvec[1];
+   qvec[1] = sn*pvec[0] + cs*pvec[1];
+   qvec[2] = pvec[2];
+   qvec[3] = pvec[3];
+}
